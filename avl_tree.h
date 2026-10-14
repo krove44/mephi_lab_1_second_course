@@ -82,6 +82,39 @@ class avl_tree {
         balance(slot);
     }
 
+    void rec_remove(T value, std::unique_ptr<Node<T>>& slot) {
+        if (!slot) {
+            return;
+        }
+        if (value > slot->key) {
+            rec_remove(value, slot->right);
+        }
+        else if (value < slot->key) {
+            rec_remove(value, slot->left);
+        }
+        else {
+            if (!slot->left) {
+                slot = std::move(slot->right);
+            }
+            else if (!slot->right) {
+                slot = std::move(slot->left);
+            }
+            else {
+                Node<T>* start = slot->right.get();
+                while (start->left) {
+                    start = start->left.get();
+                }
+                std::swap(start->key, slot->key);
+                rec_remove(value, slot->right);
+            }
+        }
+        if (slot) balance(slot);
+    }
+
+
+
+
+
 public:
     avl_tree() : head(nullptr){}
     avl_tree(T k) : head(std::make_unique<Node<T>>(k)) {}
@@ -90,5 +123,24 @@ public:
         rec_add(val, head);
     }
 
+    bool find(T val) {
+            Node<T>* start = head.get();
+            while (start) {
+                if (val == start->key) {
+                    return true;
+                }
+                if (val > start->key) {
+                    start = start->right.get();
+                }
+                else {
+                    start = start->left.get();
+                }
+            }
+            return false;
+        }
+
+    void remove(T val) {
+        rec_remove(val, head);
+    }
 
 };
