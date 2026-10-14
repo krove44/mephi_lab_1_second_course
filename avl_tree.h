@@ -16,6 +16,24 @@ template <typename T>
 class avl_tree {
     std::unique_ptr<Node<T>> head;
 
+    void rotate_right(std::unique_ptr<Node<T>>& p) {
+        std::unique_ptr<Node<T>> x = std::move(p->left);
+        p->left = std::move(x->right);
+        update_height(p);
+        x->right = std::move(p);
+        update_height(x);
+        p = std::move(x);
+    }
+
+    void rotate_left(std::unique_ptr<Node<T>>& p) {
+        std::unique_ptr<Node<T>> x = std::move(p->right);
+        p->right = std::move(x->left);
+        update_height(p);
+        x->left = std::move(p);
+        update_height(x);
+        p = std::move(x);
+    }
+
     int get_height(std::unique_ptr<Node<T>>& p) {
         if (!p) {
             return -1;
@@ -35,7 +53,20 @@ class avl_tree {
     }
 
     void balance(std::unique_ptr<Node<T>>& slot) {
-
+        update_height(slot);
+        int bf = balance_factor(slot);
+        if (bf > 1) {
+            if (balance_factor(slot->left) < 0) {
+                rotate_left(slot->left);
+            }
+            rotate_right(slot);
+        }
+        else if (bf < -1) {
+            if (balance_factor(slot->right) > 0) {
+                rotate_right(slot->right);
+            }
+            rotate_left(slot);
+        }
     }
 
     void rec_add(T value, std::unique_ptr<Node<T>>& slot) {
