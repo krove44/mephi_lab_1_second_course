@@ -111,6 +111,15 @@ class avl_tree {
         if (slot) balance(slot);
     }
 
+    template <typename F>
+    void in_order(Node<T>* n, F& f) {
+        if (!n) {
+            return;
+        }
+        in_order(n->left.get(), f);
+        f(n->key);
+        in_order(n->right.get(), f);
+    }
 
 
 
@@ -142,5 +151,34 @@ public:
     void remove(T val) {
         rec_remove(val, head);
     }
+
+    template <typename F>
+    void for_each(F f) {
+        in_order(head.get(), f);
+    }
+
+    template <typename P>
+    avl_tree<T> where(P pred) {
+        avl_tree res;
+        for_each([&](T& k) {
+            if (pred(k)) res.add(k);
+        });
+        return res;
+    }
+
+    template <typename U, typename F>
+    avl_tree<U> map(F f)  {
+        avl_tree<U> res;
+        for_each([&](T& k) { res.add(f(k)); });
+        return res;
+    }
+
+    template <typename A, typename F>
+    A reduce(A init, F f) {
+        for_each([&](T& k) { init = f(init, k); });
+        return init;
+    }
+
+
 
 };
