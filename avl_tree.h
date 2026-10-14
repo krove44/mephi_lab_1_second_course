@@ -121,12 +121,23 @@ class avl_tree {
         in_order(n->right.get(), f);
     }
 
+    std::unique_ptr<Node<T>> clone(Node<T>* n) {
+        if (!n) {
+            return nullptr;
+        }
+        std::unique_ptr<Node<T>> c = std::make_unique<Node<T>>(n->key);
+        c->height = n->height;
+        c->left = clone(n->left.get());
+        c->right = clone(n->right.get());
+        return c;
+    }
 
 
 
 public:
     avl_tree() : head(nullptr){}
     avl_tree(T k) : head(std::make_unique<Node<T>>(k)) {}
+    avl_tree(std::unique_ptr<Node<T>> root) : head(std::move(root)) {}
 
     void add(T val) {
         rec_add(val, head);
@@ -178,7 +189,17 @@ public:
         for_each([&](T& k) { init = f(init, k); });
         return init;
     }
-
-
-
+    
+    avl_tree copy(const T& key) {
+        Node<T>* start = head.get();
+        while (start && !(start->key == key)) {
+            if (key > start->key) {
+                start = start->right.get();
+            }
+            else {
+                start = start->left.get();
+            }
+        }
+        return avl_tree(clone(start));
+    }
 };

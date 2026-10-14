@@ -19,5 +19,6 @@ int main() {
     int z = sp.reduce(0, [](int s, int k) { return s + k; });
     std::cout << z << std::endl;
     avl_tree<int> sp2 = sp.map<int>([](int k){return k * 2;});
+    auto e = sp.copy(8);
     return 0;
 }
