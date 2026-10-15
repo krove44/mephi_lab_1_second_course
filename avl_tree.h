@@ -206,10 +206,13 @@ public:
     }
 
     std::string to_string() {
-        std::string sany;
+        std::string sany = "";
         in_order(head.get(),[&](T& k) {
             sany += std::to_string(k) + " ";
         });
+        if (sany.size() > 0) {
+            sany.erase(sany.size() - 1);
+        }
         return sany;
     }
 };
