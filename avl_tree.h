@@ -1,5 +1,6 @@
 #pragma once
 #include <memory>
+#include <string>
 
 template<typename T>
 struct Node {
@@ -112,7 +113,7 @@ class avl_tree {
     }
 
     template <typename F>
-    void in_order(Node<T>* n, F& f) {
+    void in_order(Node<T>* n, F&& f) {
         if (!n) {
             return;
         }
@@ -202,4 +203,15 @@ public:
         }
         return avl_tree(clone(start));
     }
+
+    std::string to_string() {
+        std::string sany;
+        in_order(head.get(),[&](T& k) {
+            sany += std::to_string(k) + " ";
+        });
+        return sany;
+    }
+
+
+
 };

@@ -20,5 +20,7 @@ int main() {
     std::cout << z << std::endl;
     avl_tree<int> sp2 = sp.map<int>([](int k){return k * 2;});
     auto e = sp.copy(8);
+    std::string s = sp.to_string();
+    std::cout << s;
     return 0;
 }
