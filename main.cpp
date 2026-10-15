@@ -22,5 +22,7 @@ int main() {
     auto e = sp.copy(8);
     std::string s = sp.to_string();
     std::cout << s;
+    std::string ss = "1 2 3";
+    auto r = from_string(ss);
     return 0;
 }
