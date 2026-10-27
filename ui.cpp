@@ -1,7 +1,6 @@
 #include <iostream>
 #include <string>
 #include <vector>
-#include <exception>
 #include <variant>
 
 namespace std {
