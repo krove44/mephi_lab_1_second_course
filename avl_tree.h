@@ -216,12 +216,12 @@ public:
         return sany;
     }
 };
-
-avl_tree<std::string> from_string(std::string& s) {
-        avl_tree<std::string> tree;
-        for (auto part : std::string_view(s) | std::views::split(' ')) {
-            std::string elem(part.begin(), part.end());
-            tree.add(elem);
-        }
-        return tree;
-    }
+// avl_tree<T> from_string()
+// avl_tree<std::string> from_string(std::string& s, T(*deserializer)(std::string) ) {
+//         avl_tree<std::string> tree;
+//         for (auto part : std::string_view(s) | std::views::split(' ')) {
+//             std::string elem(part.begin(), part.end());
+//             tree.add(elem);
+//         }
+//         return tree;
+//     }
