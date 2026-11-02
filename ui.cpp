@@ -5,12 +5,6 @@
 #include <algorithm>
 #include <cctype>
 
-namespace std {
-    inline string to_string(const string& s) {
-        return s;
-    }
-}
-
 #include "ftxui/component/component.hpp"
 #include "ftxui/component/component_base.hpp"
 #include "ftxui/component/screen_interactive.hpp"
@@ -23,8 +17,19 @@ using namespace ftxui;
 
 enum class TreeType { INT, DOUBLE, STRING };
 
+// Безопасная функция для преобразования в строку любого типа (вместо старого хака)
+template <typename T>
+std::string stringify(const T& val) {
+    if constexpr (std::is_same_v<T, std::string>) {
+        return val;
+    } else {
+        return std::to_string(val);
+    }
+}
+
 int main() {
-    std::variant<std::monostate, avl_tree<int>, avl_tree<double>, avl_tree<std::string>> tree_variant;
+    // Деревья теперь имеют два шаблонных параметра <Ключ, Значение>
+    std::variant<std::monostate, avl_tree<int, int>, avl_tree<double, double>, avl_tree<std::string, std::string>> tree_variant;
     TreeType current_type = TreeType::INT;
 
     int active_tab = 0;
@@ -62,7 +67,7 @@ int main() {
         func_entries.clear();
         func_selected = 0;
 
-        if (menu_selected == 3) {
+        if (menu_selected == 3) { // map
             if (current_type == TreeType::INT) {
                 func_entries = {"x * 2 (Умножить на 2)", "x + 10 (Прибавить 10)", "x * x (Квадрат)", "|x| (Модуль)"};
             } else if (current_type == TreeType::DOUBLE) {
@@ -70,19 +75,17 @@ int main() {
             } else if (current_type == TreeType::STRING) {
                 func_entries = {"ВЕРХНИЙ РЕГИСТР", "нижний регистр", "Добавить '!' в конец", "Реверс строки"};
             }
-        } else if (menu_selected == 4) {
+        } else if (menu_selected == 4) { // where
             if (current_type == TreeType::INT) {
-                func_entries = {"Четные (x % 2 == 0)", "Нечетные (x % 2 != 0)", "Положительные (x > 0)", "Отрицательные (x < 0)"};
+                func_entries = {"Четные ключи (k % 2 == 0)", "Нечетные ключи", "Положительные (k > 0)", "Отрицательные (k < 0)"};
             } else if (current_type == TreeType::DOUBLE) {
-                func_entries = {"Положительные (x > 0.0)", "Отрицательные (x < 0.0)", "Больше 10.0 (x > 10.0)", "Целая часть четная"};
+                func_entries = {"Положительные (k > 0.0)", "Отрицательные (k < 0.0)", "Больше 10.0 (k > 10.0)", "Целая часть четная"};
             } else if (current_type == TreeType::STRING) {
                 func_entries = {"Длина > 3 символов", "Длина <= 3 символов", "Начинается с заглавной", "Не пустые"};
             }
-        } else if (menu_selected == 5) {
-            if (current_type == TreeType::INT) {
-                func_entries = {"Сумма элементов", "Произведение элементов", "Количество элементов"};
-            } else if (current_type == TreeType::DOUBLE) {
-                func_entries = {"Сумма элементов", "Произведение элементов", "Количество элементов"};
+        } else if (menu_selected == 5) { // reduce
+            if (current_type == TreeType::INT || current_type == TreeType::DOUBLE) {
+                func_entries = {"Сумма ключей", "Произведение ключей", "Количество узлов"};
             } else if (current_type == TreeType::STRING) {
                 func_entries = {"Конкатенация через пробел", "Конкатенация слитно", "Суммарная длина строк"};
             }
@@ -93,13 +96,13 @@ int main() {
     auto type_submit = Button("Выбрать", [&] {
         if (type_menu_selected == 0) {
             current_type = TreeType::INT;
-            tree_variant = avl_tree<int>();
+            tree_variant = avl_tree<int, int>();
         } else if (type_menu_selected == 1) {
             current_type = TreeType::DOUBLE;
-            tree_variant = avl_tree<double>();
+            tree_variant = avl_tree<double, double>();
         } else if (type_menu_selected == 2) {
             current_type = TreeType::STRING;
-            tree_variant = avl_tree<std::string>();
+            tree_variant = avl_tree<std::string, std::string>();
         }
         status_message = "Дерево создано. Введите значение или выберите операцию.";
         menu_selected = 0;
@@ -108,16 +111,13 @@ int main() {
         active_tab = 1;
     });
 
-    auto type_container = Container::Vertical({
-        type_menu,
-        type_submit
-    });
+    auto type_container = Container::Vertical({ type_menu, type_submit });
 
     auto menu = Menu(&menu_entries, &menu_selected);
     auto func_menu = Radiobox(&func_entries, &func_selected);
 
     InputOption input_option;
-    Component input = Input(&input_value, "Ввод...", input_option);
+    Component input = Input(&input_value, "Ввод (будет и ключом, и значением)...", input_option);
 
     auto needs_input = [&]() {
         return menu_selected == 0 || menu_selected == 1 || menu_selected == 2 || menu_selected == 6;
@@ -127,56 +127,48 @@ int main() {
     };
 
     auto submit_button = Button("Выполнить", [&] {
-        if (menu_selected == 8) {
-            screen.Exit();
-            return;
-        }
-        if (menu_selected == 7) {
-            active_tab = 0;
-            return;
-        }
-
-        if (needs_input() && input_value.empty()) {
-            status_message = "Ошибка: Пустой ввод!";
-            return;
-        }
+        if (menu_selected == 8) { screen.Exit(); return; }
+        if (menu_selected == 7) { active_tab = 0; return; }
+        if (needs_input() && input_value.empty()) { status_message = "Ошибка: Пустой ввод!"; return; }
 
         try {
             if (current_type == TreeType::INT) {
-                if (auto* t = std::get_if<avl_tree<int>>(&tree_variant)) {
+                if (auto* t = std::get_if<avl_tree<int, int>>(&tree_variant)) {
                     if (needs_input()) {
                         int val = std::stoi(input_value);
-                        if (menu_selected == 0) { t->add(val); status_message = "Элемент добавлен."; }
-                        else if (menu_selected == 1) { t->remove(val); status_message = "Элемент удален (если существовал)."; }
+                        if (menu_selected == 0) { t->add(val, val); status_message = "Узел [" + std::to_string(val) + ":" + std::to_string(val) + "] добавлен."; }
+                        else if (menu_selected == 1) { t->remove(val); status_message = "Узел удален (если существовал)."; }
                         else if (menu_selected == 2) { status_message = t->find(val) ? "Результат: НАЙДЕН" : "Результат: НЕ НАЙДЕН"; }
                         else if (menu_selected == 6) {
                             *t = t->copy(val);
                             status_message = "Текущее дерево заменено на поддерево с корнем " + std::to_string(val);
                         }
                     } else if (menu_selected == 3) {
-                        if (func_selected == 0) *t = t->map<int>([](int x) { return x * 2; });
-                        else if (func_selected == 1) *t = t->map<int>([](int x) { return x + 10; });
-                        else if (func_selected == 2) *t = t->map<int>([](int x) { return x * x; });
-                        else if (func_selected == 3) *t = t->map<int>([](int x) { return std::abs(x); });
+                        if (func_selected == 0) *t = t->map<int, int>([](int k, int v) { return std::make_pair(k * 2, v * 2); });
+                        else if (func_selected == 1) *t = t->map<int, int>([](int k, int v) { return std::make_pair(k + 10, v + 10); });
+                        else if (func_selected == 2) *t = t->map<int, int>([](int k, int v) { return std::make_pair(k * k, v * v); });
+                        else if (func_selected == 3) *t = t->map<int, int>([](int k, int v) { return std::make_pair(std::abs(k), std::abs(v)); });
                         status_message = "Операция map выполнена.";
                     } else if (menu_selected == 4) {
-                        if (func_selected == 0) *t = t->where([](int x) { return x % 2 == 0; });
-                        else if (func_selected == 1) *t = t->where([](int x) { return x % 2 != 0; });
-                        else if (func_selected == 2) *t = t->where([](int x) { return x > 0; });
-                        else if (func_selected == 3) *t = t->where([](int x) { return x < 0; });
+                        if (func_selected == 0) *t = t->where([](int k, int v) { return k % 2 == 0; });
+                        else if (func_selected == 1) *t = t->where([](int k, int v) { return k % 2 != 0; });
+                        else if (func_selected == 2) *t = t->where([](int k, int v) { return k > 0; });
+                        else if (func_selected == 3) *t = t->where([](int k, int v) { return k < 0; });
                         status_message = "Операция where выполнена.";
                     } else if (menu_selected == 5) {
-                        if (t->to_string().empty()) {
+                        bool is_empty = true;
+                        t->for_each([&](int, int) { is_empty = false; });
+                        if (is_empty) {
                             status_message = "Ошибка: Дерево пустое!";
                         } else {
                             if (func_selected == 0) {
-                                int res = t->reduce(0, [](int acc, int x) { return acc + x; });
-                                status_message = "Результат reduce (Сумма): " + std::to_string(res);
+                                int res = t->reduce(0, [](int acc, int k, int v) { return acc + k; });
+                                status_message = "Результат reduce (Сумма ключей): " + std::to_string(res);
                             } else if (func_selected == 1) {
-                                int res = t->reduce(1, [](int acc, int x) { return acc * x; });
-                                status_message = "Результат reduce (Произведение): " + std::to_string(res);
+                                int res = t->reduce(1, [](int acc, int k, int v) { return acc * k; });
+                                status_message = "Результат reduce (Произведение ключей): " + std::to_string(res);
                             } else if (func_selected == 2) {
-                                int res = t->reduce(0, [](int acc, int) { return acc + 1; });
+                                int res = t->reduce(0, [](int acc, int k, int v) { return acc + 1; });
                                 status_message = "Результат reduce (Количество): " + std::to_string(res);
                             }
                         }
@@ -184,40 +176,42 @@ int main() {
                 }
             }
             else if (current_type == TreeType::DOUBLE) {
-                if (auto* t = std::get_if<avl_tree<double>>(&tree_variant)) {
+                if (auto* t = std::get_if<avl_tree<double, double>>(&tree_variant)) {
                     if (needs_input()) {
                         double val = std::stod(input_value);
-                        if (menu_selected == 0) { t->add(val); status_message = "Элемент добавлен."; }
-                        else if (menu_selected == 1) { t->remove(val); status_message = "Элемент удален."; }
+                        if (menu_selected == 0) { t->add(val, val); status_message = "Узел добавлен."; }
+                        else if (menu_selected == 1) { t->remove(val); status_message = "Узел удален."; }
                         else if (menu_selected == 2) { status_message = t->find(val) ? "Результат: НАЙДЕН" : "Результат: НЕ НАЙДЕН"; }
                         else if (menu_selected == 6) {
                             *t = t->copy(val);
                             status_message = "Дерево заменено на поддерево с корнем " + std::to_string(val);
                         }
                     } else if (menu_selected == 3) {
-                        if (func_selected == 0) *t = t->map<double>([](double x) { return x * 2.0; });
-                        else if (func_selected == 1) *t = t->map<double>([](double x) { return x / 2.0; });
-                        else if (func_selected == 2) *t = t->map<double>([](double x) { return x + 1.5; });
-                        else if (func_selected == 3) *t = t->map<double>([](double x) { return x * x; });
+                        if (func_selected == 0) *t = t->map<double, double>([](double k, double v) { return std::make_pair(k * 2.0, v * 2.0); });
+                        else if (func_selected == 1) *t = t->map<double, double>([](double k, double v) { return std::make_pair(k / 2.0, v / 2.0); });
+                        else if (func_selected == 2) *t = t->map<double, double>([](double k, double v) { return std::make_pair(k + 1.5, v + 1.5); });
+                        else if (func_selected == 3) *t = t->map<double, double>([](double k, double v) { return std::make_pair(k * k, v * v); });
                         status_message = "Операция map выполнена.";
                     } else if (menu_selected == 4) {
-                        if (func_selected == 0) *t = t->where([](double x) { return x > 0.0; });
-                        else if (func_selected == 1) *t = t->where([](double x) { return x < 0.0; });
-                        else if (func_selected == 2) *t = t->where([](double x) { return x > 10.0; });
-                        else if (func_selected == 3) *t = t->where([](double x) { return static_cast<long long>(x) % 2 == 0; });
+                        if (func_selected == 0) *t = t->where([](double k, double v) { return k > 0.0; });
+                        else if (func_selected == 1) *t = t->where([](double k, double v) { return k < 0.0; });
+                        else if (func_selected == 2) *t = t->where([](double k, double v) { return k > 10.0; });
+                        else if (func_selected == 3) *t = t->where([](double k, double v) { return static_cast<long long>(k) % 2 == 0; });
                         status_message = "Операция where выполнена.";
                     } else if (menu_selected == 5) {
-                        if (t->to_string().empty()) {
+                        bool is_empty = true;
+                        t->for_each([&](double, double) { is_empty = false; });
+                        if (is_empty) {
                             status_message = "Ошибка: Дерево пустое!";
                         } else {
                             if (func_selected == 0) {
-                                double res = t->reduce(0.0, [](double acc, double x) { return acc + x; });
-                                status_message = "Результат reduce (Сумма): " + std::to_string(res);
+                                double res = t->reduce(0.0, [](double acc, double k, double v) { return acc + k; });
+                                status_message = "Результат reduce (Сумма ключей): " + std::to_string(res);
                             } else if (func_selected == 1) {
-                                double res = t->reduce(1.0, [](double acc, double x) { return acc * x; });
-                                status_message = "Результат reduce (Произведение): " + std::to_string(res);
+                                double res = t->reduce(1.0, [](double acc, double k, double v) { return acc * k; });
+                                status_message = "Результат reduce (Произведение ключей): " + std::to_string(res);
                             } else if (func_selected == 2) {
-                                int res = t->reduce(0, [](int acc, double) { return acc + 1; });
+                                int res = t->reduce(0, [](int acc, double k, double v) { return acc + 1; });
                                 status_message = "Результат reduce (Количество): " + std::to_string(res);
                             }
                         }
@@ -225,10 +219,10 @@ int main() {
                 }
             }
             else if (current_type == TreeType::STRING) {
-                if (auto* t = std::get_if<avl_tree<std::string>>(&tree_variant)) {
+                if (auto* t = std::get_if<avl_tree<std::string, std::string>>(&tree_variant)) {
                     if (needs_input()) {
-                        if (menu_selected == 0) { t->add(input_value); status_message = "Строка добавлена."; }
-                        else if (menu_selected == 1) { t->remove(input_value); status_message = "Строка удалена."; }
+                        if (menu_selected == 0) { t->add(input_value, input_value); status_message = "Узел добавлен."; }
+                        else if (menu_selected == 1) { t->remove(input_value); status_message = "Узел удален."; }
                         else if (menu_selected == 2) { status_message = t->find(input_value) ? "Результат: НАЙДЕН" : "Результат: НЕ НАЙДЕН"; }
                         else if (menu_selected == 6) {
                             *t = t->copy(input_value);
@@ -236,49 +230,54 @@ int main() {
                         }
                     } else if (menu_selected == 3) {
                         if (func_selected == 0) {
-                            *t = t->map<std::string>([](std::string s) {
-                                std::transform(s.begin(), s.end(), s.begin(), ::toupper);
-                                return s;
+                            *t = t->map<std::string, std::string>([](std::string k, std::string v) {
+                                std::transform(k.begin(), k.end(), k.begin(), ::toupper);
+                                std::transform(v.begin(), v.end(), v.begin(), ::toupper);
+                                return std::make_pair(k, v);
                             });
                         } else if (func_selected == 1) {
-                            *t = t->map<std::string>([](std::string s) {
-                                std::transform(s.begin(), s.end(), s.begin(), ::tolower);
-                                return s;
+                            *t = t->map<std::string, std::string>([](std::string k, std::string v) {
+                                std::transform(k.begin(), k.end(), k.begin(), ::tolower);
+                                std::transform(v.begin(), v.end(), v.begin(), ::tolower);
+                                return std::make_pair(k, v);
                             });
                         } else if (func_selected == 2) {
-                            *t = t->map<std::string>([](std::string s) { return s + "!"; });
+                            *t = t->map<std::string, std::string>([](std::string k, std::string v) { return std::make_pair(k + "!", v + "!"); });
                         } else if (func_selected == 3) {
-                            *t = t->map<std::string>([](std::string s) {
-                                std::reverse(s.begin(), s.end());
-                                return s;
+                            *t = t->map<std::string, std::string>([](std::string k, std::string v) {
+                                std::reverse(k.begin(), k.end());
+                                std::reverse(v.begin(), v.end());
+                                return std::make_pair(k, v);
                             });
                         }
                         status_message = "Операция map выполнена.";
                     } else if (menu_selected == 4) {
-                        if (func_selected == 0) *t = t->where([](const std::string& s) { return s.length() > 3; });
-                        else if (func_selected == 1) *t = t->where([](const std::string& s) { return s.length() <= 3; });
-                        else if (func_selected == 2) *t = t->where([](const std::string& s) { return !s.empty() && std::isupper(static_cast<unsigned char>(s[0])); });
-                        else if (func_selected == 3) *t = t->where([](const std::string& s) { return !s.empty(); });
+                        if (func_selected == 0) *t = t->where([](const std::string& k, const std::string& v) { return k.length() > 3; });
+                        else if (func_selected == 1) *t = t->where([](const std::string& k, const std::string& v) { return k.length() <= 3; });
+                        else if (func_selected == 2) *t = t->where([](const std::string& k, const std::string& v) { return !k.empty() && std::isupper(static_cast<unsigned char>(k[0])); });
+                        else if (func_selected == 3) *t = t->where([](const std::string& k, const std::string& v) { return !k.empty(); });
                         status_message = "Операция where выполнена.";
                     } else if (menu_selected == 5) {
-                        if (t->to_string().empty()) {
+                        bool is_empty = true;
+                        t->for_each([&](const std::string&, const std::string&) { is_empty = false; });
+                        if (is_empty) {
                             status_message = "Ошибка: Дерево пустое!";
                         } else {
                             if (func_selected == 0) {
-                                std::string res = t->reduce(std::string(""), [](std::string acc, const std::string& s) {
-                                    return acc.empty() ? s : acc + " " + s;
+                                std::string res = t->reduce(std::string(""), [](std::string acc, const std::string& k, const std::string& v) {
+                                    return acc.empty() ? k : acc + " " + k;
                                 });
                                 status_message = "Результат reduce: " + res;
                             } else if (func_selected == 1) {
-                                std::string res = t->reduce(std::string(""), [](std::string acc, const std::string& s) {
-                                    return acc + s;
+                                std::string res = t->reduce(std::string(""), [](std::string acc, const std::string& k, const std::string& v) {
+                                    return acc + k;
                                 });
                                 status_message = "Результат reduce: " + res;
                             } else if (func_selected == 2) {
-                                size_t res = t->reduce(size_t(0), [](size_t acc, const std::string& s) {
-                                    return acc + s.length();
+                                size_t res = t->reduce(size_t(0), [](size_t acc, const std::string& k, const std::string& v) {
+                                    return acc + k.length();
                                 });
-                                status_message = "Результат reduce (Суммарная длина): " + std::to_string(res);
+                                status_message = "Результат (Суммарная длина ключей): " + std::to_string(res);
                             }
                         }
                     }
@@ -302,10 +301,7 @@ int main() {
         })
     });
 
-    auto global_container = Container::Tab({
-        type_container,
-        main_container
-    }, &active_tab);
+    auto global_container = Container::Tab({ type_container, main_container }, &active_tab);
 
     auto renderer = Renderer(global_container, [&] {
         if (menu_selected != prev_menu_selected) {
@@ -327,21 +323,26 @@ int main() {
         std::string tree_content = "";
         std::string type_str = "";
 
-        if (auto* t = std::get_if<avl_tree<int>>(&tree_variant)) {
-            tree_content = t->to_string();
+        // Обход дерева вручную для вывода (метод to_string() больше не нужен)
+        if (auto* t = std::get_if<avl_tree<int, int>>(&tree_variant)) {
+            t->for_each([&](int k, int v) { tree_content += "[" + stringify(k) + ":" + stringify(v) + "] "; });
             type_str = "INT";
-        } else if (auto* t = std::get_if<avl_tree<double>>(&tree_variant)) {
-            tree_content = t->to_string();
+        } else if (auto* t = std::get_if<avl_tree<double, double>>(&tree_variant)) {
+            t->for_each([&](double k, double v) { tree_content += "[" + stringify(k) + ":" + stringify(v) + "] "; });
             type_str = "DOUBLE";
-        } else if (auto* t = std::get_if<avl_tree<std::string>>(&tree_variant)) {
-            tree_content = t->to_string();
+        } else if (auto* t = std::get_if<avl_tree<std::string, std::string>>(&tree_variant)) {
+            t->for_each([&](const std::string& k, const std::string& v) { tree_content += "[" + stringify(k) + ":" + stringify(v) + "] "; });
             type_str = "STRING";
         } else {
             tree_content = "{ Внутренняя ошибка типа }";
             type_str = "UNKNOWN";
         }
 
-        if (tree_content.empty()) tree_content = "{ Дерево пустое }";
+        if (tree_content.empty()) {
+            tree_content = "{ Дерево пустое }";
+        } else {
+            tree_content.pop_back(); // Удаляем лишний пробел в конце
+        }
 
         Element control_area;
         if (needs_input()) {
@@ -378,7 +379,7 @@ int main() {
                 text(" Тип дерева: " + type_str) | bold | color(Color::Magenta),
                 text(" Статус: " + status_message) | color(Color::Yellow),
                 separator(),
-                text(" СОДЕРЖИМОЕ ДЕРЕВА (in-order): ") | bold,
+                text(" СОДЕРЖИМОЕ ДЕРЕВА [Ключ:Значение]: ") | bold,
                 text("") | size(HEIGHT, EQUAL, 1),
                 paragraph(tree_content) | color(Color::Green)
             }) | border | flex,
