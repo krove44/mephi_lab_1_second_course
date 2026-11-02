@@ -353,39 +353,39 @@ TEST(AvlReduce, GoesInAscendingOrder) {
     EXPECT_EQ(s, "1,2,3,");
 }
 
-// ---------- Извлечение поддерева (copy) ----------
+// ---------- Извлечение поддерева (subtree) ----------
 
-TEST(AvlCopy, SubtreeOfInnerNode) {
+TEST(Avlsubtree, SubtreeOfInnerNode) {
     avl_tree<int, int> t = perfect7();
-    auto sub = t.copy(2);
+    auto sub = t.subtree(2);
     EXPECT_EQ(keys(sub), (std::vector<int>{1, 2, 3}));
     EXPECT_EQ(sub.head->key, 2);
     EXPECT_EQ(tree_height(sub), 1);
     EXPECT_TRUE(is_avl(sub));
 }
 
-TEST(AvlCopy, WholeTreeWhenKeyIsRoot) {
+TEST(Avlsubtree, WholeTreeWhenKeyIsRoot) {
     avl_tree<int, int> t = perfect7();
-    auto sub = t.copy(4);
+    auto sub = t.subtree(4);
     EXPECT_EQ(keys(sub), range(1, 7));
     EXPECT_TRUE(is_avl(sub));
 }
 
-TEST(AvlCopy, Leaf) {
+TEST(Avlsubtree, Leaf) {
     avl_tree<int, int> t = perfect7();
-    auto sub = t.copy(7);
+    auto sub = t.subtree(7);
     EXPECT_EQ(keys(sub), (std::vector<int>{7}));
 }
 
-TEST(AvlCopy, MissingKeyGivesEmptyTree) {
+TEST(Avlsubtree, MissingKeyGivesEmptyTree) {
     avl_tree<int, int> t = perfect7();
-    auto sub = t.copy(100);
+    auto sub = t.subtree(100);
     EXPECT_TRUE(sub.head == nullptr);
 }
 
-TEST(AvlCopy, CopyIsIndependentFromOriginal) {
+TEST(Avlsubtree, subtreeIsIndependentFromOriginal) {
     avl_tree<int, int> t = perfect7();
-    auto sub = t.copy(2);
+    auto sub = t.subtree(2);
     sub.add(100, 100);
     EXPECT_FALSE(t.find(100));
     t.remove(1);

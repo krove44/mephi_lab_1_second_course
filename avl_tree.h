@@ -214,7 +214,7 @@ public:
         return init;
     }
 
-    avl_tree copy(const T& key) {
+    avl_tree subtree(const T& key) {
         Node<T, V>* start = head.get();
         while (start && !(start->key == key)) {
             if (key > start->key) {

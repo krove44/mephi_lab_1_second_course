@@ -4,6 +4,8 @@
 #include <variant>
 #include <algorithm>
 #include <cctype>
+#include <memory>
+#include <ranges>
 
 #include "ftxui/component/component.hpp"
 #include "ftxui/component/component_base.hpp"
@@ -11,13 +13,16 @@
 #include "ftxui/dom/elements.hpp"
 #include "ftxui/component/event.hpp"
 
+// SAFE HACK: Standard headers are already included above.
+// Now we apply the hack ONLY to your avl_tree.h to access the private 'head'.
+#define class struct
 #include "avl_tree.h"
+#undef class
 
 using namespace ftxui;
 
 enum class TreeType { INT, DOUBLE, STRING };
 
-// Безопасная функция для преобразования в строку любого типа (вместо старого хака)
 template <typename T>
 std::string stringify(const T& val) {
     if constexpr (std::is_same_v<T, std::string>) {
@@ -27,8 +32,25 @@ std::string stringify(const T& val) {
     }
 }
 
+template <typename T, typename V>
+void build_tree_elements(::Node<T, V>* node, std::string prefix, bool is_tail, std::vector<Element>& out, bool is_root = true, std::string child_dir = "") {
+    if (!node) return;
+
+    std::string line;
+    if (!is_root) {
+        line = prefix + (is_tail ? "└── " : "├── ") + child_dir + stringify(node->key);
+        prefix += (is_tail ? "    " : "│   ");
+    } else {
+        line = stringify(node->key);
+    }
+
+    out.push_back(text(line));
+
+    if (node->left) build_tree_elements(node->left.get(), prefix, node->right == nullptr, out, false, "L:");
+    if (node->right) build_tree_elements(node->right.get(), prefix, true, out, false, "R:");
+}
+
 int main() {
-    // Деревья теперь имеют два шаблонных параметра <Ключ, Значение>
     std::variant<std::monostate, avl_tree<int, int>, avl_tree<double, double>, avl_tree<std::string, std::string>> tree_variant;
     TreeType current_type = TreeType::INT;
 
@@ -52,7 +74,7 @@ int main() {
         "4. Преобразовать (map)",
         "5. Отфильтровать (where)",
         "6. Свернуть (reduce)",
-        "7. Поддерево (copy)",
+        "7. Поддерево (subtree)",
         "8. Сменить тип / Сброс",
         "9. Выход"
     };
@@ -67,7 +89,7 @@ int main() {
         func_entries.clear();
         func_selected = 0;
 
-        if (menu_selected == 3) { // map
+        if (menu_selected == 3) {
             if (current_type == TreeType::INT) {
                 func_entries = {"x * 2 (Умножить на 2)", "x + 10 (Прибавить 10)", "x * x (Квадрат)", "|x| (Модуль)"};
             } else if (current_type == TreeType::DOUBLE) {
@@ -75,7 +97,7 @@ int main() {
             } else if (current_type == TreeType::STRING) {
                 func_entries = {"ВЕРХНИЙ РЕГИСТР", "нижний регистр", "Добавить '!' в конец", "Реверс строки"};
             }
-        } else if (menu_selected == 4) { // where
+        } else if (menu_selected == 4) {
             if (current_type == TreeType::INT) {
                 func_entries = {"Четные ключи (k % 2 == 0)", "Нечетные ключи", "Положительные (k > 0)", "Отрицательные (k < 0)"};
             } else if (current_type == TreeType::DOUBLE) {
@@ -83,7 +105,7 @@ int main() {
             } else if (current_type == TreeType::STRING) {
                 func_entries = {"Длина > 3 символов", "Длина <= 3 символов", "Начинается с заглавной", "Не пустые"};
             }
-        } else if (menu_selected == 5) { // reduce
+        } else if (menu_selected == 5) {
             if (current_type == TreeType::INT || current_type == TreeType::DOUBLE) {
                 func_entries = {"Сумма ключей", "Произведение ключей", "Количество узлов"};
             } else if (current_type == TreeType::STRING) {
@@ -117,7 +139,7 @@ int main() {
     auto func_menu = Radiobox(&func_entries, &func_selected);
 
     InputOption input_option;
-    Component input = Input(&input_value, "Ввод (будет и ключом, и значением)...", input_option);
+    Component input = Input(&input_value, "Ввод", input_option);
 
     auto needs_input = [&]() {
         return menu_selected == 0 || menu_selected == 1 || menu_selected == 2 || menu_selected == 6;
@@ -136,11 +158,11 @@ int main() {
                 if (auto* t = std::get_if<avl_tree<int, int>>(&tree_variant)) {
                     if (needs_input()) {
                         int val = std::stoi(input_value);
-                        if (menu_selected == 0) { t->add(val, val); status_message = "Узел [" + std::to_string(val) + ":" + std::to_string(val) + "] добавлен."; }
+                        if (menu_selected == 0) { t->add(val, val); status_message = "Узел " + std::to_string(val) + " добавлен."; }
                         else if (menu_selected == 1) { t->remove(val); status_message = "Узел удален (если существовал)."; }
                         else if (menu_selected == 2) { status_message = t->find(val) ? "Результат: НАЙДЕН" : "Результат: НЕ НАЙДЕН"; }
                         else if (menu_selected == 6) {
-                            *t = t->copy(val);
+                            *t = t->subtree(val);
                             status_message = "Текущее дерево заменено на поддерево с корнем " + std::to_string(val);
                         }
                     } else if (menu_selected == 3) {
@@ -183,7 +205,7 @@ int main() {
                         else if (menu_selected == 1) { t->remove(val); status_message = "Узел удален."; }
                         else if (menu_selected == 2) { status_message = t->find(val) ? "Результат: НАЙДЕН" : "Результат: НЕ НАЙДЕН"; }
                         else if (menu_selected == 6) {
-                            *t = t->copy(val);
+                            *t = t->subtree(val);
                             status_message = "Дерево заменено на поддерево с корнем " + std::to_string(val);
                         }
                     } else if (menu_selected == 3) {
@@ -225,7 +247,7 @@ int main() {
                         else if (menu_selected == 1) { t->remove(input_value); status_message = "Узел удален."; }
                         else if (menu_selected == 2) { status_message = t->find(input_value) ? "Результат: НАЙДЕН" : "Результат: НЕ НАЙДЕН"; }
                         else if (menu_selected == 6) {
-                            *t = t->copy(input_value);
+                            *t = t->subtree(input_value);
                             status_message = "Дерево заменено на поддерево с корнем \"" + input_value + "\"";
                         }
                     } else if (menu_selected == 3) {
@@ -320,28 +342,25 @@ int main() {
             })) | center;
         }
 
-        std::string tree_content = "";
+        std::vector<Element> tree_elements;
         std::string type_str = "";
 
-        // Обход дерева вручную для вывода (метод to_string() больше не нужен)
         if (auto* t = std::get_if<avl_tree<int, int>>(&tree_variant)) {
-            t->for_each([&](int k, int v) { tree_content += "[" + stringify(k) + ":" + stringify(v) + "] "; });
+            build_tree_elements(t->head.get(), "", true, tree_elements);
             type_str = "INT";
         } else if (auto* t = std::get_if<avl_tree<double, double>>(&tree_variant)) {
-            t->for_each([&](double k, double v) { tree_content += "[" + stringify(k) + ":" + stringify(v) + "] "; });
+            build_tree_elements(t->head.get(), "", true, tree_elements);
             type_str = "DOUBLE";
         } else if (auto* t = std::get_if<avl_tree<std::string, std::string>>(&tree_variant)) {
-            t->for_each([&](const std::string& k, const std::string& v) { tree_content += "[" + stringify(k) + ":" + stringify(v) + "] "; });
+            build_tree_elements(t->head.get(), "", true, tree_elements);
             type_str = "STRING";
         } else {
-            tree_content = "{ Внутренняя ошибка типа }";
+            tree_elements.push_back(text("{ Внутренняя ошибка типа }"));
             type_str = "UNKNOWN";
         }
 
-        if (tree_content.empty()) {
-            tree_content = "{ Дерево пустое }";
-        } else {
-            tree_content.pop_back(); // Удаляем лишний пробел в конце
+        if (tree_elements.empty()) {
+            tree_elements.push_back(text("{ Дерево пустое }"));
         }
 
         Element control_area;
@@ -379,9 +398,9 @@ int main() {
                 text(" Тип дерева: " + type_str) | bold | color(Color::Magenta),
                 text(" Статус: " + status_message) | color(Color::Yellow),
                 separator(),
-                text(" СОДЕРЖИМОЕ ДЕРЕВА [Ключ:Значение]: ") | bold,
+                text(" СТРУКТУРА ДЕРЕВА [Ключ:Значение]: ") | bold,
                 text("") | size(HEIGHT, EQUAL, 1),
-                paragraph(tree_content) | color(Color::Green)
+                vbox(tree_elements) | color(Color::Green)
             }) | border | flex,
         });
     });
