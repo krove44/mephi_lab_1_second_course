@@ -39,7 +39,6 @@ int check_node(const Node<T, V>* n, bool& ok) {
     return 1 + std::max(hl, hr);
 }
 
-// Дерево корректно: сбалансировано, высоты верны, ключи при обходе in-order не убывают.
 template <typename T, typename V>
 bool is_avl(avl_tree<T, V>& t) {
     bool ok = true;
@@ -61,7 +60,7 @@ std::vector<int> range(int from, int to) {
 
 avl_tree<int, int> make_tree(const std::vector<int>& xs) {
     avl_tree<int, int> t;
-    for (int x : xs) t.add(x, x); // Ключ и значение одинаковые
+    for (int x : xs) t.add(x, x);
     return t;
 }
 
@@ -394,3 +393,21 @@ TEST(Avlsubtree, subtreeIsIndependentFromOriginal) {
     EXPECT_TRUE(is_avl(t));
     EXPECT_TRUE(is_avl(sub));
 }
+
+// ---------- to_string ----------
+
+TEST(To_string, BaseTest) {
+    avl_tree<int, int> t = perfect7();
+    std::string ans = t.to_string();
+    EXPECT_TRUE(ans == "1 2 3 4 5 6 7");
+}
+
+TEST(To_string, BaseTest2) {
+    avl_tree<std::string, std::string> t;
+    t.add("a", "a");
+    t.add("b", "b");
+    t.add("c", "c");
+    std::string ans = t.to_string();
+    EXPECT_TRUE(ans == "a b c");
+}
+

@@ -1,7 +1,7 @@
 #pragma once
 #include <memory>
 #include <string>
-#include <ranges>
+#include <type_traits>
 
 template<typename T, typename V>
 struct Node {
@@ -141,7 +141,6 @@ public:
     avl_tree() : head(nullptr){}
     avl_tree(T k, V v) : head(std::make_unique<Node<T, V>>(k, v)) {}
     avl_tree(std::unique_ptr<Node<T, V>> root) : head(std::move(root)) {}
-
     void add(T key, V val) {
         rec_add(key, val, head);
     }
@@ -227,14 +226,20 @@ public:
         return avl_tree(clone(start));
     }
 
-    // std::string to_string() {
-    //     std::string sany = "";
-    //     in_order(head.get(),[&](T& k, V& v) {
-    //         sany += std::to_string(k) + " ";
-    //     });
-    //     if (sany.size() > 0) {
-    //         sany.erase(sany.size() - 1);
-    //     }
-    //     return sany;
-    // }
+    std::string to_string() {
+        std::string sany = "";
+        in_order(head.get(), [&](T& k, V& v) {
+            if constexpr (std::is_same_v<T, std::string>) {
+                sany += k + " ";
+            } else {
+                sany += std::to_string(k) + " ";
+            }
+        });
+        if (sany.size() > 0) {
+            sany.erase(sany.size() - 1);
+        }
+        return sany;
+    }
+
+
 };

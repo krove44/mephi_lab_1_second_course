@@ -13,8 +13,7 @@
 #include "ftxui/dom/elements.hpp"
 #include "ftxui/component/event.hpp"
 
-// SAFE HACK: Standard headers are already included above.
-// Now we apply the hack ONLY to your avl_tree.h to access the private 'head'.
+
 #define class struct
 #include "avl_tree.h"
 #undef class
