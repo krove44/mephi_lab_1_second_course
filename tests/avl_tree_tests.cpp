@@ -411,3 +411,14 @@ TEST(To_string, BaseTest2) {
     EXPECT_TRUE(ans == "a b c");
 }
 
+// ---------- from_string ----------
+
+TEST(From_string, BaseTest) {
+    avl_tree<int, int> t;
+    t.from_string("1 2 3", [](const std::string& z) {
+        return std::stoi(z);
+    });
+    std::string ans = t.to_string();
+    EXPECT_TRUE(ans == "1 2 3");
+}
+

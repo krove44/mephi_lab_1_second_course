@@ -11,6 +11,7 @@ struct Node {
     V value;
     int height;
     Node(T k, V v) : left(nullptr), right(nullptr), key(k), value(v), height(0){};
+
 };
 
 template <typename T, typename V>
@@ -239,6 +240,24 @@ public:
             sany.erase(sany.size() - 1);
         }
         return sany;
+    }
+    template<typename F>
+    void from_string(const std::string& st, F f)  {
+        std::string el;
+        for (const char it : st) {
+            if (it != ' ') {
+                el += it;
+            }
+            else {
+                if (!el.empty()) {
+                    add(f(el), f(el));
+                    el.clear();
+                }
+            }
+        }
+        if (!el.empty()) {
+            add(f(el), f(el));
+        }
     }
 
 
