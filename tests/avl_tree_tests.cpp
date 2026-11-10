@@ -11,9 +11,7 @@
 #include <string>
 #include <vector>
 
-#define class struct
-#include "../avl_tree.h"
-#undef class
+#include "avl_tree.h"
 
 namespace {
 
@@ -22,7 +20,7 @@ namespace {
 template <typename T, typename V>
 std::vector<T> keys(const avl_tree<T, V>& t) {
     std::vector<T> v;
-    t.for_each([&](T& k, V& val) {
+    t.for_each([&](const T& k, const V& val) {
         v.push_back(k);
     });
     return v;
@@ -30,26 +28,27 @@ std::vector<T> keys(const avl_tree<T, V>& t) {
 
 // Возвращает высоту, пересчитанную по детям, и помечает ошибку, если нарушен AVL-инвариант.
 template <typename T, typename V>
-int check_node(const Node_for_avl<T, V>* n, bool& ok) {
+int check_node(const std::shared_ptr<const Node_for_avl<T, V>>& n, bool& ok) {
     if (!n) return -1;
-    int hl = check_node<T, V>(n->left.get(), ok);
-    int hr = check_node<T, V>(n->right.get(), ok);
+    int hl = check_node<T, V>(n->left, ok);
+    int hr = check_node<T, V>(n->right, ok);
     if (std::abs(hl - hr) > 1) ok = false;
     if (n->height != 1 + std::max(hl, hr)) ok = false;
     return 1 + std::max(hl, hr);
 }
 
 template <typename T, typename V>
-bool is_avl(avl_tree<T, V>& t) {
+bool is_avl(const avl_tree<T, V>& t) {
     bool ok = true;
-    check_node<T, V>(t.head.get(), ok);
+    check_node<T, V>(t.get_root(), ok);
     auto v = keys(t);
     return ok && std::is_sorted(v.begin(), v.end());
 }
 
 template <typename T, typename V>
-int tree_height(avl_tree<T, V>& t) {
-    return t.head ? t.head->height : -1;
+int tree_height(const avl_tree<T, V>& t) {
+    auto root = t.get_root();
+    return root ? root->height : -1;
 }
 
 std::vector<int> range(int from, int to) {
@@ -68,32 +67,36 @@ avl_tree<int, int> perfect7() { return make_tree({4, 2, 6, 1, 3, 5, 7}); }
 
 void expect_root2(const std::vector<int>& order) {
     avl_tree<int, int> t = make_tree(order);
-    ASSERT_TRUE(t.head != nullptr);
-    EXPECT_EQ(t.head->key, 2);
-    ASSERT_TRUE(t.head->left != nullptr);
-    ASSERT_TRUE(t.head->right != nullptr);
-    EXPECT_EQ(t.head->left->key, 1);
-    EXPECT_EQ(t.head->right->key, 3);
-    EXPECT_EQ(t.head->height, 1);
-    EXPECT_EQ(t.head->left->height, 0);
-    EXPECT_EQ(t.head->right->height, 0);
+    auto root = t.get_root();
+    ASSERT_TRUE(root != nullptr);
+    EXPECT_EQ(root->key, 2);
+    ASSERT_TRUE(root->left != nullptr);
+    ASSERT_TRUE(root->right != nullptr);
+    EXPECT_EQ(root->left->key, 1);
+    EXPECT_EQ(root->right->key, 3);
+    EXPECT_EQ(root->height, 1);
+    EXPECT_EQ(root->left->height, 0);
+    EXPECT_EQ(root->right->height, 0);
 }
 
-}
+} // namespace
 
 // ---------- Базовые операции ----------
 
 TEST(AvlBasic, EmptyTree) {
     avl_tree<int, int> t;
+    EXPECT_TRUE(t.empty());
     EXPECT_FALSE(t.find(1));
     EXPECT_TRUE(keys(t).empty());
     EXPECT_EQ(t.reduce(42, [](int a, int k, int v) { return a + k; }), 42);
     t.remove(5);
-    EXPECT_TRUE(t.head == nullptr);
+    EXPECT_TRUE(t.empty());
+    EXPECT_TRUE(t.get_root() == nullptr);
 }
 
 TEST(AvlBasic, ConstructorWithKey) {
     avl_tree<int, int> t(7, 70);
+    EXPECT_FALSE(t.empty());
     EXPECT_TRUE(t.find(7));
     EXPECT_FALSE(t.find(8));
     EXPECT_EQ(t.get(7), 70);
@@ -120,14 +123,35 @@ TEST(AvlBasic, NegativeKeys) {
 }
 
 TEST(AvlBasic, DuplicatesOverwriteValues) {
-    // В новой реализации дубликаты перезаписывают value
     avl_tree<int, std::string> t;
     t.add(5, "first");
     t.add(5, "second");
     t.add(5, "third");
-    EXPECT_EQ(keys(t), (std::vector<int>{5})); // Ключ остался один
-    EXPECT_EQ(t.get(5), "third"); // Значение перезаписалось
+    EXPECT_EQ(keys(t), (std::vector<int>{5}));
+    EXPECT_EQ(t.get(5), "third");
     EXPECT_TRUE(is_avl(t));
+}
+
+TEST(AvlBasic, DeepCopyOnSharedPtr) {
+    avl_tree<int, int> t1 = perfect7();
+    avl_tree<int, int> t2 = t1; // Конструктор копирования
+    avl_tree<int, int> t3;
+    t3 = t1; // Оператор присваивания
+
+    t1.add(100, 100);
+    t2.remove(4);
+
+    EXPECT_TRUE(t1.find(100));
+    EXPECT_FALSE(t2.find(100));
+    EXPECT_FALSE(t3.find(100));
+
+    EXPECT_TRUE(t1.find(4));
+    EXPECT_FALSE(t2.find(4));
+    EXPECT_TRUE(t3.find(4));
+
+    EXPECT_TRUE(is_avl(t1));
+    EXPECT_TRUE(is_avl(t2));
+    EXPECT_TRUE(is_avl(t3));
 }
 
 // ---------- Повороты ----------
@@ -141,7 +165,9 @@ TEST(AvlRotations, RotationAtNonRootLevel) {
     avl_tree<int, int> t = make_tree({10, 5, 20, 30, 40});
     EXPECT_TRUE(is_avl(t));
     EXPECT_EQ(keys(t), (std::vector<int>{5, 10, 20, 30, 40}));
-    EXPECT_EQ(t.head->right->key, 30);
+    ASSERT_NE(t.get_root(), nullptr);
+    ASSERT_NE(t.get_root()->right, nullptr);
+    EXPECT_EQ(t.get_root()->right->key, 30);
 }
 
 // ---------- Балансировка на больших данных ----------
@@ -197,14 +223,16 @@ TEST(AvlRemove, NodeWithTwoChildrenReplacedBySuccessor) {
     avl_tree<int, int> t = perfect7();
     t.remove(4);  // корень с двумя детьми
     EXPECT_EQ(keys(t), (std::vector<int>{1, 2, 3, 5, 6, 7}));
-    EXPECT_EQ(t.head->key, 5);
+    ASSERT_NE(t.get_root(), nullptr);
+    EXPECT_EQ(t.get_root()->key, 5);
     EXPECT_TRUE(is_avl(t));
 }
 
 TEST(AvlRemove, OnlyElementLeavesEmptyTree) {
     avl_tree<int, int> t(1, 1);
     t.remove(1);
-    EXPECT_TRUE(t.head == nullptr);
+    EXPECT_TRUE(t.empty());
+    EXPECT_TRUE(t.get_root() == nullptr);
     EXPECT_FALSE(t.find(1));
 }
 
@@ -219,10 +247,13 @@ TEST(AvlRemove, MissingKeyChangesNothing) {
 TEST(AvlRemove, TriggersRebalance) {
     avl_tree<int, int> t = make_tree({10, 5, 15, 2});
     t.remove(15);
-    ASSERT_TRUE(t.head != nullptr);
-    EXPECT_EQ(t.head->key, 5);
-    EXPECT_EQ(t.head->left->key, 2);
-    EXPECT_EQ(t.head->right->key, 10);
+    auto root = t.get_root();
+    ASSERT_TRUE(root != nullptr);
+    EXPECT_EQ(root->key, 5);
+    ASSERT_NE(root->left, nullptr);
+    ASSERT_NE(root->right, nullptr);
+    EXPECT_EQ(root->left->key, 2);
+    EXPECT_EQ(root->right->key, 10);
     EXPECT_TRUE(is_avl(t));
 }
 
@@ -250,7 +281,8 @@ TEST(AvlRemove, EverythingInRandomOrderKeepsInvariants) {
         ASSERT_TRUE(is_avl(t)) << "after removing " << x;
         ASSERT_EQ(static_cast<int>(keys(t).size()), left);
     }
-    EXPECT_TRUE(t.head == nullptr);
+    EXPECT_TRUE(t.empty());
+    EXPECT_TRUE(t.get_root() == nullptr);
 }
 
 TEST(AvlRandomized, MatchesStdSet) {
@@ -286,7 +318,8 @@ TEST(AvlWhere, FiltersByPredicate) {
 TEST(AvlWhere, NothingMatches) {
     avl_tree<int, int> t = make_tree(range(1, 10));
     auto none = t.where([](int k, int v) { return false; });
-    EXPECT_TRUE(none.head == nullptr);
+    EXPECT_TRUE(none.empty());
+    EXPECT_TRUE(none.get_root() == nullptr);
 }
 
 TEST(AvlWhere, EverythingMatches) {
@@ -298,7 +331,6 @@ TEST(AvlWhere, EverythingMatches) {
 
 TEST(AvlMap, SameType) {
     avl_tree<int, int> t = make_tree(range(1, 5));
-    // Возвращаем пару ключ-значение
     auto doubled = t.map<int, int>([](int k, int v) { return std::make_pair(k * 2, v * 2); });
     EXPECT_EQ(keys(doubled), (std::vector<int>{2, 4, 6, 8, 10}));
     EXPECT_TRUE(is_avl(doubled));
@@ -333,7 +365,6 @@ TEST(AvlMap, ToStrings) {
 
 TEST(AvlReduce, Sum) {
     avl_tree<int, int> t = make_tree(range(1, 100));
-    // Лямбда принимает аккумулятор, ключ и значение
     EXPECT_EQ(t.reduce(0, [](int acc, int k, int v) { return acc + k; }), 5050);
 }
 
@@ -358,7 +389,8 @@ TEST(Avlsubtree, SubtreeOfInnerNode) {
     avl_tree<int, int> t = perfect7();
     auto sub = t.subtree(2);
     EXPECT_EQ(keys(sub), (std::vector<int>{1, 2, 3}));
-    EXPECT_EQ(sub.head->key, 2);
+    ASSERT_NE(sub.get_root(), nullptr);
+    EXPECT_EQ(sub.get_root()->key, 2);
     EXPECT_EQ(tree_height(sub), 1);
     EXPECT_TRUE(is_avl(sub));
 }
@@ -379,7 +411,8 @@ TEST(Avlsubtree, Leaf) {
 TEST(Avlsubtree, MissingKeyGivesEmptyTree) {
     avl_tree<int, int> t = perfect7();
     auto sub = t.subtree(100);
-    EXPECT_TRUE(sub.head == nullptr);
+    EXPECT_TRUE(sub.empty());
+    EXPECT_TRUE(sub.get_root() == nullptr);
 }
 
 TEST(Avlsubtree, subtreeIsIndependentFromOriginal) {
@@ -399,7 +432,7 @@ TEST(Avlsubtree, subtreeIsIndependentFromOriginal) {
 TEST(To_string, BaseTest) {
     avl_tree<int, int> t = perfect7();
     std::string ans = t.to_string();
-    EXPECT_TRUE(ans == "1 2 3 4 5 6 7");
+    EXPECT_EQ(ans, "1 2 3 4 5 6 7");
 }
 
 TEST(To_string, BaseTest2) {
@@ -408,7 +441,7 @@ TEST(To_string, BaseTest2) {
     t.add("b", "b");
     t.add("c", "c");
     std::string ans = t.to_string();
-    EXPECT_TRUE(ans == "a b c");
+    EXPECT_EQ(ans, "a b c");
 }
 
 // ---------- from_string ----------
@@ -419,6 +452,5 @@ TEST(From_string, BaseTest) {
         return std::stoi(z);
     });
     std::string ans = t.to_string();
-    EXPECT_TRUE(ans == "1 2 3");
+    EXPECT_EQ(ans, "1 2 3");
 }
-
