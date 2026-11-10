@@ -13,10 +13,7 @@
 #include "ftxui/dom/elements.hpp"
 #include "ftxui/component/event.hpp"
 
-
-#define class struct
 #include "avl_tree.h"
-#undef class
 
 using namespace ftxui;
 
@@ -32,7 +29,7 @@ std::string stringify(const T& val) {
 }
 
 template <typename T, typename V>
-void build_tree_elements(::Node<T, V>* node, std::string prefix, bool is_tail, std::vector<Element>& out, bool is_root = true, std::string child_dir = "") {
+void build_tree_elements(std::shared_ptr<const Node_for_avl<T, V>> node, std::string prefix, bool is_tail, std::vector<Element>& out, bool is_root = true, std::string child_dir = "") {
     if (!node) return;
 
     std::string line;
@@ -45,8 +42,8 @@ void build_tree_elements(::Node<T, V>* node, std::string prefix, bool is_tail, s
 
     out.push_back(text(line));
 
-    if (node->left) build_tree_elements(node->left.get(), prefix, node->right == nullptr, out, false, "L:");
-    if (node->right) build_tree_elements(node->right.get(), prefix, true, out, false, "R:");
+    if (node->left) build_tree_elements<T, V>(node->left, prefix, node->right == nullptr, out, false, "L:");
+    if (node->right) build_tree_elements<T, V>(node->right, prefix, true, out, false, "R:");
 }
 
 int main() {
@@ -177,9 +174,7 @@ int main() {
                         else if (func_selected == 3) *t = t->where([](int k, int v) { return k < 0; });
                         status_message = "Операция where выполнена.";
                     } else if (menu_selected == 5) {
-                        bool is_empty = true;
-                        t->for_each([&](int, int) { is_empty = false; });
-                        if (is_empty) {
+                        if (t->empty()) {
                             status_message = "Ошибка: Дерево пустое!";
                         } else {
                             if (func_selected == 0) {
@@ -220,9 +215,7 @@ int main() {
                         else if (func_selected == 3) *t = t->where([](double k, double v) { return static_cast<long long>(k) % 2 == 0; });
                         status_message = "Операция where выполнена.";
                     } else if (menu_selected == 5) {
-                        bool is_empty = true;
-                        t->for_each([&](double, double) { is_empty = false; });
-                        if (is_empty) {
+                        if (t->empty()) {
                             status_message = "Ошибка: Дерево пустое!";
                         } else {
                             if (func_selected == 0) {
@@ -279,9 +272,7 @@ int main() {
                         else if (func_selected == 3) *t = t->where([](const std::string& k, const std::string& v) { return !k.empty(); });
                         status_message = "Операция where выполнена.";
                     } else if (menu_selected == 5) {
-                        bool is_empty = true;
-                        t->for_each([&](const std::string&, const std::string&) { is_empty = false; });
-                        if (is_empty) {
+                        if (t->empty()) {
                             status_message = "Ошибка: Дерево пустое!";
                         } else {
                             if (func_selected == 0) {
@@ -345,13 +336,13 @@ int main() {
         std::string type_str = "";
 
         if (auto* t = std::get_if<avl_tree<int, int>>(&tree_variant)) {
-            build_tree_elements(t->head.get(), "", true, tree_elements);
+            build_tree_elements<int, int>(t->get_root(), "", true, tree_elements);
             type_str = "INT";
         } else if (auto* t = std::get_if<avl_tree<double, double>>(&tree_variant)) {
-            build_tree_elements(t->head.get(), "", true, tree_elements);
+            build_tree_elements<double, double>(t->get_root(), "", true, tree_elements);
             type_str = "DOUBLE";
         } else if (auto* t = std::get_if<avl_tree<std::string, std::string>>(&tree_variant)) {
-            build_tree_elements(t->head.get(), "", true, tree_elements);
+            build_tree_elements<std::string, std::string>(t->get_root(), "", true, tree_elements);
             type_str = "STRING";
         } else {
             tree_elements.push_back(text("{ Внутренняя ошибка типа }"));

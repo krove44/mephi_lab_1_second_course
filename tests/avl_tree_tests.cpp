@@ -30,7 +30,7 @@ std::vector<T> keys(const avl_tree<T, V>& t) {
 
 // Возвращает высоту, пересчитанную по детям, и помечает ошибку, если нарушен AVL-инвариант.
 template <typename T, typename V>
-int check_node(const Node<T, V>* n, bool& ok) {
+int check_node(const Node_for_avl<T, V>* n, bool& ok) {
     if (!n) return -1;
     int hl = check_node<T, V>(n->left.get(), ok);
     int hr = check_node<T, V>(n->right.get(), ok);
